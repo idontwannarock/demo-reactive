@@ -1,0 +1,46 @@
+version: '3.1'
+
+services:
+  postgres:
+    image: postgres
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "root"]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    restart: always
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=password
+      - APP_DB_USER=docker
+      - APP_DB_PASS=docker
+      - APP_DB_NAME=orders
+    volumes:
+      - ~/data/labs/reservation-services/postgres:/var/lib/postgresql/data
+      - ./db:/docker-entrypoint-initdb.d/
+    ports:
+      - '5432:5432'
+  influxdb:
+    build: './influxdb'
+    ports:
+      - '8086:8086'
+  grafana:
+    build: './grafana'
+    links:
+      - influxdb
+    environment:
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_BASIC_ENABLED=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/exported_dashboard.json
+    ports:
+      - '3000:3000'
+  k6:
+    image: grafana/k6
+    ports:
+      - "6565:6565"
+    volumes:
+      - "./tests:/scripts"
+    environment:
+      - K6_OUT=influxdb=http://influxdb:8086/k6
+    command: "version"
